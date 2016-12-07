@@ -15,7 +15,7 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-class LoginScau:
+class LoginSystem:
 
     def __init__(self, username, password):
         self.username = username
@@ -101,10 +101,10 @@ class LoginScau:
 
 def main():
 
-    username = '201525050420'
-    passwd = raw_input("Enter passwd of " + username + '\n')
+    username = raw_input("Enter the user:\n")
+    passwd = raw_input("Enter the password:\n")
     try:
-        test = LoginScau(username, password=passwd)
+        test = LoginSystem(username, password=passwd)
     except urllib2.HTTPError as e:
         print e.code
         print e.reason
