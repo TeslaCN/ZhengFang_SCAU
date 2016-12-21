@@ -2,15 +2,13 @@
 
 __metaclass__ = type
 
-import selenium
-
-from selenium import webdriver
 import urllib, urllib2
 import urlparse
 import cookielib
 import lxml.html
 import re
 from pprint import pprint
+import time
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -18,6 +16,7 @@ sys.setdefaultencoding('utf-8')
 class LoginSystem:
 
     def __init__(self, username, password):
+        self.logined = False
         self.username = username
         self.password = password
         self.headers = {}
@@ -30,6 +29,7 @@ class LoginSystem:
 
         self.domain = 'http://202.116.160.170/'
         self.url_homepage = 'http://202.116.160.170/default2.aspx'
+        self.url_PublicCourse = 'http://202.116.160.170/xf_xsqxxxk.aspx?'
 
         # using re to match secret code picture's url
         # Unicode Chinese \u4e00-\u9fa5
@@ -66,21 +66,29 @@ class LoginSystem:
 
         }
         pprint(self.headers)
-        login_response = self.getresponse(url=self.url_homepage, data = encode_data, headers = self.headers)
-        html_homepage = login_response.read()
+        login_response = self.getresponse(url=self.url_homepage, encoded_data= encode_data, headers = self.headers)
+        self.html_homepage = login_response.read()
 
         # login error have not handle yet
-        result = self.match_alert.search(html_homepage)
-        print html_homepage.decode('gb2312')
+        result = self.match_alert.search(self.html_homepage)
+        print self.html_homepage.decode('gb2312')
+        ChineseName = re.findall('>(.*?)同学<'.encode('gb2312'), self.html_homepage)
         if result is not None:
             print "ERROR:", result.groups()[0].decode('gb2312')
+            return
+        elif not bool(ChineseName):
+            print "Login Failed!"
             return
         else:
             print "Login succeeded"
             self.referer = 'http://202.116.160.170/xs_main.aspx?xh={}'.format(self.username)
+            self.logined = True
 
         print '=' * 100
-        self.urllist_teachingevaluation = self.getclasscode(html_homepage)
+
+
+        self.ChineseName = ChineseName[0].decode('gb2312')
+        print "Welcome!", self.ChineseName
 
 
     def getsecretcode(self, html):
@@ -94,9 +102,9 @@ class LoginSystem:
         return raw_input("Enter the secret code:")
 
 
-    def getresponse(self, url, headers = {'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0'}, data = None):
+    def getresponse(self, url, headers = {'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0'}, encoded_data = None):
 
-        request = urllib2.Request(url, data=data, headers=headers)
+        request = urllib2.Request(url, data=encoded_data, headers=headers)
         self.updateheaders(url)
         response = self.opener.open(request)
 
@@ -128,6 +136,7 @@ class LoginSystem:
             print "RESULT IS NONE"
 
     def evaluateClass(self):
+        self.urllist_teachingevaluation = self.getclasscode(self.html_homepage)
         for url in self.urllist_teachingevaluation:
             self.evaluate(url=url)
         # self.evaluate(self.urllist_teachingevaluation[0])
@@ -147,9 +156,6 @@ class LoginSystem:
         for i in tree.cssselect('option[selected=selected]'):
             # print i.get('value')
             selected.append(i.get('value') or u'\u4f18')
-
-
-
 
         selected.reverse()
 
@@ -183,11 +189,11 @@ class LoginSystem:
         pprint(self.headers)
 
         encoded_data = urllib.urlencode(data)
-        print encoded_data
+        # print encoded_data
         print 'length of post ==', len(encoded_data)
-        html = self.getresponse(url=full_url, headers=self.headers, data=encoded_data).read()
+        html = self.getresponse(url=full_url, headers=self.headers, encoded_data=encoded_data).read()
         # print '-' * 255
-        print html.decode('gb2312')
+        # print html.decode('gb2312')
         match_finished = re.compile('所有评价已完成，现在可以提交！'.encode('gb2312'))
         finished = match_finished.search(html)
 
@@ -199,18 +205,106 @@ class LoginSystem:
             del data['Button1']
             data['Button2'] = u' \u63d0  \u4ea4 '.encode('gb2312') # ' 提  交 '
             finish_data = self.getpostform(html)
-            print data['__VIEWSTATE']
-            print finish_data['__VIEWSTATE']
+            # print data['__VIEWSTATE']
+            # print finish_data['__VIEWSTATE']
             data['__VIEWSTATE'] = finish_data['__VIEWSTATE']
             pprint(data)
             submit_data = urllib.urlencode(data)
-            html = self.getresponse(url=full_url, headers=self.headers, data=submit_data)
+            html = self.getresponse(url=full_url, headers=self.headers, encoded_data=submit_data)
             print '*' * 255
 
         else:
             print "Didn't finished yet!"
 
 
+    def EnterCoursePage(self):
+        if not self.logined:
+            print "Have not logined yet"
+            return
+        # url_temp = 'http://202.116.160.170/xf_xsqxxxk.aspx?gnmkdm=N121104&xh={}&xm={}'
+
+        # 以下数据为用户数据
+        data_enterpage = {
+            'xh':self.username,
+            'xm':self.ChineseName.encode('gb2312'),
+            'gnmkdm':'N121104',
+        }
+        encoded_data = urllib.urlencode(data_enterpage)
+        print encoded_data
+
+
+
+        print 255 * '*'
+        response_coursepage = self.getresponse(url=self.url_PublicCourse+encoded_data, headers=self.headers)
+        html_coursepage = response_coursepage.read()
+        # print html_coursepage.decode('gb2312')
+        # Entered!!!
+
+        postform = self.getpostform(html_coursepage)
+        pprint(postform)
+
+        # 筛选条件
+        postform['ddl_kcgs'] = 'A系列'.encode('gb2312')      # 课程归属
+        postform['dpkcmcGrid:txtPageSize'] = '20'
+        # 若根据课程名称搜索，筛选条件无效
+        postform['TextBox1'] = '影视艺术鉴赏(A系列)'.encode('gb2312')   # 根据课程名称搜索
+
+        postform['ddl_xqbs'] = '2'                          # 1：主校区     2：东区    3：启林
+
+        encoded = urllib.urlencode(postform)
+
+
+        # 华丽的分割线
+        # 以下为乱写的代码
+        print 255 * '-='
+
+        t1 = self.getresponse(url = self.url_PublicCourse+encoded_data, headers=self.headers, encoded_data=encoded)
+        html = t1.read()
+        # print html.decode('gbk')
+        data_bomb = self.getpostform(html)
+        del data_bomb['Button2']
+        del data_bomb['Button4']
+        del data_bomb['Button5']
+        del data_bomb['btnClose']
+        del data_bomb['dpkcmcGrid:btnFirstPage']
+        del data_bomb['dpkcmcGrid:btnLastPage']
+        del data_bomb['dpkcmcGrid:btnNextPage']
+        del data_bomb['dpkcmcGrid:btnPrePage']
+        del data_bomb['dpkcmcGrid:btnpost']
+        data_bomb['kcmcGrid:_ctl3:xk'] = 'on'
+        data_bomb['kcmcGrid:_ctl6:xk'] = 'on'
+        data_bomb['Button1'] = '  提交  '.encode('gb2312')
+        pprint(data_bomb)
+
+        self.BombingCourse(url_target=self.url_PublicCourse+encoded_data, data_dict=data_bomb, bomb_times=100, sleep=0.1)
+
+
+        pass
+
+    def BombingCourse(self, url_target, data_dict, bomb_times = -1, sleep = 3):
+        encoded_data = urllib.urlencode(data_dict)
+        # print encoded_data
+        times_bombed = 0
+        while bomb_times!= 0:
+            times_bombed += 1
+            if bomb_times > 0:
+                bomb_times-=1
+
+            print 128 * '~'
+            print "Tried times ==", times_bombed
+            response = self.getresponse(url=url_target, headers=self.headers, encoded_data=encoded_data)
+            html = response.read()
+
+            # with open('output.txt', 'w') as somefile:
+            #     somefile.write(html)
+
+            match_alert = re.compile('alert\((.*?)\)'.encode('gb2312'))
+            alert = match_alert.findall(html)
+            # pprint(alert)
+            print alert[0].decode('gb2312')
+            # time.sleep(sleep)
+
+        pass
 
     def updateheaders(self, url):
         self.referer = url
@@ -222,10 +316,11 @@ def main():
     username = raw_input("Enter the user:\n")
     passwd = raw_input("Enter the password:\n")
 
-
     try:
         test = LoginSystem(username, password=passwd)
-        test.evaluateClass()
+
+        test.EnterCoursePage()
+        # test.evaluateClass()
 
 
     except urllib2.HTTPError as e:
@@ -269,6 +364,54 @@ Upgrade-Insecure-Requests: 1
 Content-Length	196
 Content-Type	application/x-www-form-urlencoded
 
+
+
+__EVENTTARGET
+__EVENTARGUMENT
+ddl_kcxz
+ddl_ywyl
+ddl_kcgs
+ddl_xqbs
+2
+ddl_sksj
+TextBox1
+(A
+Button2
+È·¶¨
+kcmcGrid:_ctl2:jcnr
+|||
+kcmcGrid:_ctl3:jcnr
+|||
+kcmcGrid:_ctl4:jcnr
+|||
+kcmcGrid:_ctl5:jcnr
+|||
+kcmcGrid:_ctl6:jcnr
+|||
+kcmcGrid:_ctl7:jcnr
+|||
+kcmcGrid:_ctl8:jcnr
+|||
+kcmcGrid:_ctl9:jcnr
+|||
+kcmcGrid:_ctl10:jcnr
+|||
+kcmcGrid:_ctl11:jcnr
+|||
+kcmcGrid:_ctl12:jcnr
+|||
+kcmcGrid:_ctl13:jcnr
+|||
+kcmcGrid:_ctl14:jcnr
+|||
+kcmcGrid:_ctl15:jcnr
+|||
+kcmcGrid:_ctl16:jcnr
+Ò©ÓÃÖ²ÎïÑ§|¿ÆÑ§³ö°æÉç|ÍõµÂÈº£¬Ì¸Ï×ºÍ|1
+dpkcmcGrid:txtChoosePage
+1
+dpkcmcGrid:txtPageSize
+15
 
 
 
