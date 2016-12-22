@@ -28,8 +28,33 @@ class LoginSystem:
 
 
         self.domain = 'http://202.116.160.170/'
-        self.url_homepage = 'http://202.116.160.170/default2.aspx'
-        self.url_PublicCourse = 'http://202.116.160.170/xf_xsqxxxk.aspx?'
+        # self.url_homepage = 'http://202.116.160.170/default2.aspx'
+        # self.url_PublicCourse = 'http://202.116.160.170/xf_xsqxxxk.aspx?'
+        self.url_homepage = self.domain+'default2.aspx'
+        self.url_PublicCourse = self.domain+'xf_xsqxxxk.aspx?'
+
+        print self.url_homepage
+
+
+        self.headers = {
+            'Host': '202.116.160.170',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate',
+
+            'Referer' : 'http://202.116.160.170/',
+            # 'Referer': self.domain + 'xs_main.aspx?xh={}'.format(self.username),
+            # 'Referer' : 'http://202.116.160.170/xs_main.aspx?xh={}'.format(self.username),
+
+            # 'Cookie' : 'ASP.NET_SessionId=dqovqqjxbxmi4umopz1bf2j2',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            # 'Content-Length' : '196',
+            # 'Content-Type' : 'application/x-www-form-urlencoded'
+
+        }
+        print self.headers['Referer']
 
         # using re to match secret code picture's url
         # Unicode Chinese \u4e00-\u9fa5
@@ -38,6 +63,7 @@ class LoginSystem:
 
 
         html_loginpage = self.getresponse(self.url_homepage).read()
+        # print html_loginpage.decode('gbk')
         # get login post form
         data = self.getpostform(html_loginpage)
         #pprint(data)
@@ -49,22 +75,7 @@ class LoginSystem:
         data['txtSecretCode'] = self.getsecretcode(html_loginpage)
         pprint(data)
         encode_data = urllib.urlencode(data)
-        self.headers = {
-            'Host' : '202.116.160.170',
-            'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0',
-            'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language' : 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding' : 'gzip, deflate',
-            # 'Referer' : 'http://202.116.160.170/',
-            'Referer' : 'http://202.116.160.170/xs_main.aspx?xh={}'.format(self.username),
 
-            #'Cookie' : 'ASP.NET_SessionId=dqovqqjxbxmi4umopz1bf2j2',
-            'Connection' : 'keep-alive',
-            'Upgrade-Insecure-Requests' : '1',
-            # 'Content-Length' : '196',
-            # 'Content-Type' : 'application/x-www-form-urlencoded'
-
-        }
         pprint(self.headers)
         login_response = self.getresponse(url=self.url_homepage, encoded_data= encode_data, headers = self.headers)
         self.html_homepage = login_response.read()
@@ -106,9 +117,19 @@ class LoginSystem:
 
         request = urllib2.Request(url, data=encoded_data, headers=headers)
         self.updateheaders(url)
-        response = self.opener.open(request)
+        while True:
+            try:
+                response = self.opener.open(request)
+                return response
 
-        return response
+            except urllib2.HTTPError as e:
+                print e.code
+                print e.reason
+
+            except urllib2.URLError as e:
+                print e.reason
+
+
 
 
     def getpostform(self, html):
@@ -245,9 +266,9 @@ class LoginSystem:
 
         # 筛选条件
         postform['ddl_kcgs'] = 'A系列'.encode('gb2312')      # 课程归属
-        postform['dpkcmcGrid:txtPageSize'] = '20'
+        postform['dpkcmcGrid:txtPageSize'] = '30'
         # 若根据课程名称搜索，筛选条件无效
-        postform['TextBox1'] = '影视艺术鉴赏(A系列)'.encode('gb2312')   # 根据课程名称搜索
+        postform['TextBox1'] = '生命科学与人类文明(A系列)'.encode('gb2312')   # 根据课程名称搜索
 
         postform['ddl_xqbs'] = '2'                          # 1：主校区     2：东区    3：启林
 
@@ -260,8 +281,12 @@ class LoginSystem:
 
         t1 = self.getresponse(url = self.url_PublicCourse+encoded_data, headers=self.headers, encoded_data=encoded)
         html = t1.read()
-        # print html.decode('gbk')
+        print html.decode('gbk')
+
         data_bomb = self.getpostform(html)
+        pprint(data_bomb)
+
+        # 提交选课信息时只保留 "提交" 按钮，删除所有其他按钮
         del data_bomb['Button2']
         del data_bomb['Button4']
         del data_bomb['Button5']
@@ -271,12 +296,22 @@ class LoginSystem:
         del data_bomb['dpkcmcGrid:btnNextPage']
         del data_bomb['dpkcmcGrid:btnPrePage']
         del data_bomb['dpkcmcGrid:btnpost']
-        data_bomb['kcmcGrid:_ctl3:xk'] = 'on'
+        try:
+            del data_bomb['dpDataGrid2:btnFirstPage']
+            del data_bomb['dpDataGrid2:btnPrePage']
+            del data_bomb['dpDataGrid2:btnNextPage']
+            del data_bomb['dpDataGrid2:btnLastPage']
+            del data_bomb['dpDataGrid2:btnpost']
+        except:
+            pass
+
+        # 提交当前显示页面的第 5 门课程，列表 第1门课程由 ctl2 开始计数
         data_bomb['kcmcGrid:_ctl6:xk'] = 'on'
+        # data_bomb['kcmcGrid:_ctl5:xk'] = 'on'
         data_bomb['Button1'] = '  提交  '.encode('gb2312')
         pprint(data_bomb)
 
-        self.BombingCourse(url_target=self.url_PublicCourse+encoded_data, data_dict=data_bomb, bomb_times=100, sleep=0.1)
+        self.BombingCourse(url_target=self.url_PublicCourse+encoded_data, data_dict=data_bomb, bomb_times=-1, sleep=0.1)
 
 
         pass
@@ -291,7 +326,8 @@ class LoginSystem:
                 bomb_times-=1
 
             print 128 * '~'
-            print "Tried times ==", times_bombed
+            print time.ctime()
+            print "Times ==", times_bombed
             response = self.getresponse(url=url_target, headers=self.headers, encoded_data=encoded_data)
             html = response.read()
 
@@ -300,7 +336,8 @@ class LoginSystem:
 
             match_alert = re.compile('alert\((.*?)\)'.encode('gb2312'))
             alert = match_alert.findall(html)
-            # pprint(alert)
+            # for i in alert:
+            #     print i.decode('gb2312')
             print alert[0].decode('gb2312')
             # time.sleep(sleep)
 
@@ -316,17 +353,12 @@ def main():
     username = raw_input("Enter the user:\n")
     passwd = raw_input("Enter the password:\n")
 
-    try:
-        test = LoginSystem(username, password=passwd)
 
-        test.EnterCoursePage()
-        # test.evaluateClass()
+    test = LoginSystem(username, password=passwd)
 
+    test.EnterCoursePage()
+    # test.evaluateClass()
 
-    except urllib2.HTTPError as e:
-        print e.code
-        print e.reason
-    pass
 
 
 if __name__ == '__main__':
