@@ -4,9 +4,14 @@ __metaclass__ = type
 
 import urllib, urllib2
 import urlparse
+import socket
 import cookielib
 import lxml.html
 import re
+from email.mime.text import MIMEText
+from email.header import Header
+from email.utils import parseaddr, formataddr
+import smtplib
 from pprint import pprint
 import time
 import sys
@@ -17,6 +22,7 @@ class LoginSystem:
 
     def __init__(self, username, password):
         self.logined = False
+        self.sender_setted = False
         self.username = username
         self.password = password
         self.headers = {}
@@ -32,6 +38,10 @@ class LoginSystem:
         # self.url_PublicCourse = 'http://202.116.160.170/xf_xsqxxxk.aspx?'
         self.url_homepage = self.domain+'default2.aspx'
         self.url_PublicCourse = self.domain+'xf_xsqxxxk.aspx?'
+        self.url_Grade = self.domain+'xscjcx.aspx?'
+
+        self.code_PublicCourse = 'N121104'
+        self.code_Grade = 'N121605'
 
         print self.url_homepage
 
@@ -61,6 +71,10 @@ class LoginSystem:
         self.match_secret_code_url = re.compile('\"(CheckCode\.aspx.*?)\"')
         self.match_alert = re.compile(u'alert\((.*?)\)')
 
+        self.login()
+
+
+    def login(self):
 
         html_loginpage = self.getresponse(self.url_homepage).read()
         # print html_loginpage.decode('gbk')
@@ -82,7 +96,7 @@ class LoginSystem:
 
         # login error have not handle yet
         result = self.match_alert.search(self.html_homepage)
-        print self.html_homepage.decode('gb2312')
+        # print self.html_homepage.decode('gb2312')
         ChineseName = re.findall('>(.*?)同学<'.encode('gb2312'), self.html_homepage)
         if result is not None:
             print "ERROR:", result.groups()[0].decode('gb2312')
@@ -107,13 +121,29 @@ class LoginSystem:
         pictureurl = self.match_secret_code_url.search(html).groups()[0]
         fullurl = self.domain + pictureurl
         print fullurl
-        picture = self.opener.open(fullurl).read()
-        with open('image.jpg', 'wb') as file:
-            file.write(picture)
-        return raw_input("Enter the secret code:")
+
+        while True:
+            try:
+
+                picture = self.opener.open(fullurl).read()
+
+                with open('image.jpg', 'wb') as file:
+                    file.write(picture)
+                return raw_input("Enter the secret code:")
+
+            except urllib2.HTTPError as e:
+                print e.code
+                print e.reason
+                time.sleep(0.25)
+
+            except urllib2.URLError as e:
+                print e.reason
+                time.sleep(0.25)
 
 
-    def getresponse(self, url, headers = {'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0'}, encoded_data = None):
+
+    def getresponse(self, url, headers = {
+        'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0'}, encoded_data = None, ErrorSleep = 0.2):
 
         request = urllib2.Request(url, data=encoded_data, headers=headers)
         self.updateheaders(url)
@@ -125,10 +155,15 @@ class LoginSystem:
             except urllib2.HTTPError as e:
                 print e.code
                 print e.reason
+                time.sleep(ErrorSleep)
 
             except urllib2.URLError as e:
                 print e.reason
+                time.sleep(ErrorSleep)
 
+            except socket.error as e:
+                print e.errno
+                time.sleep(ErrorSleep)
 
 
 
@@ -248,10 +283,10 @@ class LoginSystem:
         data_enterpage = {
             'xh':self.username,
             'xm':self.ChineseName.encode('gb2312'),
-            'gnmkdm':'N121104',
+            'gnmkdm':self.code_PublicCourse,
         }
         encoded_data = urllib.urlencode(data_enterpage)
-        print encoded_data
+        # print encoded_data
 
 
 
@@ -268,7 +303,9 @@ class LoginSystem:
         postform['ddl_kcgs'] = 'A系列'.encode('gb2312')      # 课程归属
         postform['dpkcmcGrid:txtPageSize'] = '30'
         # 若根据课程名称搜索，筛选条件无效
-        postform['TextBox1'] = '生命科学与人类文明(A系列)'.encode('gb2312')   # 根据课程名称搜索
+        postform['TextBox1'] = '蔬菜营养与保健(A系列)'.encode('gb2312')   # 根据课程名称搜索
+        # postform['TextBox1'] = '昆虫与人类(A系列)'.encode('gb2312')  # 根据课程名称搜索
+        postform['ddl_ywyl'] = ''   # 课程有无余量
 
         postform['ddl_xqbs'] = '2'                          # 1：主校区     2：东区    3：启林
 
@@ -305,13 +342,13 @@ class LoginSystem:
         except:
             pass
 
-        # 提交当前显示页面的第 5 门课程，列表 第1门课程由 ctl2 开始计数
-        data_bomb['kcmcGrid:_ctl6:xk'] = 'on'
+        # 提交当前显示页面的第  门课程，列表 第1门课程由 ctl2 开始计数
+        data_bomb['kcmcGrid:_ctl2:xk'] = 'on'
         # data_bomb['kcmcGrid:_ctl5:xk'] = 'on'
         data_bomb['Button1'] = '  提交  '.encode('gb2312')
         pprint(data_bomb)
 
-        self.BombingCourse(url_target=self.url_PublicCourse+encoded_data, data_dict=data_bomb, bomb_times=-1, sleep=0.1)
+        self.BombingCourse(url_target=self.url_PublicCourse+encoded_data, data_dict=data_bomb, bomb_times=-1, sleep=0.2)
 
 
         pass
@@ -339,9 +376,196 @@ class LoginSystem:
             # for i in alert:
             #     print i.decode('gb2312')
             print alert[0].decode('gb2312')
-            # time.sleep(sleep)
+            time.sleep(sleep)
 
         pass
+
+
+    def EnterGradePage(self, enable_check = False):
+
+        if not self.logined:
+            print "Have not logined yet"
+            return
+
+        # 以下数据为用户数据
+        data_enterpage = {
+            'xh':self.username,
+            'xm':self.ChineseName.encode('gb2312'),
+            'gnmkdm':self.code_Grade,
+        }
+        self.url_Grade_Personal = self.url_Grade + urllib.urlencode(data_enterpage)
+        print self.url_Grade_Personal
+
+        response_gradepage = self.getresponse(url = self.url_Grade_Personal, headers=self.headers)
+        self.html_gradepage = response_gradepage.read()
+        # print html_gradepage.decode('gb2312')
+
+        self.grade_dict = self.LoadGradelist(self.html_gradepage)
+
+        if enable_check:
+            self.check_gradelist()
+
+
+
+
+    def LoadGradelist(self, html_gradepage):
+
+        post_form = self.getpostform(html_gradepage)
+        try:
+            del post_form['Button1']
+            del post_form['Button2']
+            del post_form['btn_dy']
+            del post_form['btn_xn']
+            del post_form['btn_xq']
+            del post_form['btn_zg']
+        except Exception as e:
+            pass
+        post_form['ddlXN'] = ''
+        post_form['ddlXQ'] = ''
+        post_form['ddl_kcxz'] = ''
+
+        pprint(post_form)
+        encoded_postdata = urllib.urlencode(post_form)
+
+        response_gradelist = self.getresponse(url = self.url_Grade_Personal, headers=self.headers, encoded_data=encoded_postdata)
+        html_gradelist = response_gradelist.read()
+        # print html_gradelist.decode('gb2312')
+
+        tree = lxml.html.fromstring(html_gradelist)
+        tr = tree.cssselect('td')
+
+
+        info_end = 8
+        info = tr[0:info_end]
+        del tr[0:info_end]
+
+        # 输出成绩单所属人信息
+        # for i in info:
+        #     print i.text_content()
+        # print 512 * '='
+
+
+
+        title_end = 19
+        title = tr[0:title_end]
+        del tr[0:title_end]
+
+        # 以下内容输出成绩单
+
+        # num = 0
+        # for i in title:
+        #     # print '%-30s' % i.text_content().strip(),
+        #     print '{}{}'.format(num, i.text_content().strip()),
+        #     num += 1
+        # print
+        # print 512 * '='
+
+        # 0学年 1学期 2课程代码 3课程名称 4课程性质 5课程归属 6学分 7绩点 8平时成绩 9期中成绩
+        # 10期末成绩 11实验成绩 12成绩 13辅修标记 14补考成绩 15重修成绩 16开课学院 17备注 18重修标记
+        #
+
+        #
+        # line = 0
+        # for i in tr:
+        #     if line == 18:
+        #         # print '%-30s' % i.text_content().strip()
+        #         print '{}'.format(i.text_content().strip().ljust(30))
+        #         line = 0
+        #     else:
+        #         line += 1
+        #         # print '%-30s' % i.text_content().strip(),
+        #         print '{}'.format(i.text_content().strip().ljust(30)),
+
+        grade_dict = self.gradelist2dict(title, tr)
+
+        # 用于打印存储成绩信息的字典
+        # for key in self.grade_dict:
+        #     print 512 * '='
+        #     print '>>> {} <<<'.format(key)
+        #     for i in self.grade_dict[key]:
+        #         print i, self.grade_dict[key][i]
+
+        return grade_dict
+
+
+    def gradelist2dict(self, title, gradelist):
+        dictionary = {}
+        while gradelist:
+            course_info = {}
+            content = gradelist[0:19]
+            del gradelist[0:19]
+
+            for i in range(len(content)):
+                course_info[title[i].text_content()] = content[i].text_content()
+
+            dictionary[content[3].text_content()] = course_info
+
+        # pprint(dictionary)
+
+        return dictionary
+
+    def set_sender(self, from_addr, password, to_addr):
+        self.from_addr = from_addr
+        self.password = password
+        self.to_addr = to_addr
+        self.sender_setted = True
+
+    def check_gradelist(self, sleep_second = 30):
+
+        while True:
+            temp_dict = self.LoadGradelist(self.html_gradepage)
+            # temp_dict['测试Python课程提醒'] = {'课程名称':'Python网络测试', '平时成绩':'636.69', '期末成绩':'766.84'}
+            for key in temp_dict:
+                if key not in self.grade_dict:
+                    print 512 * '*'
+                    print time.ctime()
+                    print "课程成绩发布"
+                    for k in temp_dict[key]:
+                        print k, temp_dict[key][k]
+                    print 512 * '*'
+                    self.send_new_grade(temp_dict[key], from_addr=self.from_addr, password=self.password, to_addr=self.to_addr)
+                    self.grade_dict = temp_dict
+
+            print '>>> Nothing <<<', time.ctime()
+
+            # print 128 * '@'
+            # for key in self.grade_dict:
+            #     for i in self.grade_dict[key]:
+            #         print self.grade_dict[key][i],
+            #     print
+            #
+            # print 64*'-'
+            # for key in temp_dict:
+            #     for i in temp_dict[key]:
+            #         print temp_dict[key][i],
+            #     print
+            #
+            # print 128 * '@'
+
+            time.sleep(sleep_second)
+
+
+    def send_new_grade(self, dictionary, from_addr, password, to_addr, smtp_server = 'smtp.qq.com', port = 465):
+
+        if self.sender_setted == False:
+            print "Email sender hasn't been setted yet"
+            return
+
+        message = ''
+        for key in dictionary:
+            message += key+': '+dictionary[key]+'\n'
+
+        msg = MIMEText(_text=message, _charset='utf-8')
+        # msg['From'] = 'Python Email'
+        # msg['To'] = self.ChineseName
+        # msg['Subject'] = '课程成绩发布提醒'
+
+        server = smtplib.SMTP_SSL(smtp_server, port)
+        server.set_debuglevel(1)
+        server.login(from_addr, password)
+        server.sendmail(from_addr, [to_addr], msg.as_string())
+        server.quit()
+
 
     def updateheaders(self, url):
         self.referer = url
@@ -353,11 +577,17 @@ def main():
     username = raw_input("Enter the user:\n")
     passwd = raw_input("Enter the password:\n")
 
-
     test = LoginSystem(username, password=passwd)
 
-    test.EnterCoursePage()
+    from_addr = raw_input("Email: ")
+    email_password = raw_input("Password: ")
+    to_addr = raw_input("To whom: ")
+
+    test.set_sender(from_addr = from_addr, password=email_password, to_addr = to_addr)
+
+    # test.EnterCoursePage()
     # test.evaluateClass()
+    # test.EnterGradePage()
 
 
 
