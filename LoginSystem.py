@@ -424,7 +424,7 @@ class LoginSystem:
         post_form['ddlXQ'] = ''
         post_form['ddl_kcxz'] = ''
 
-        pprint(post_form)
+        # pprint(post_form)
         encoded_postdata = urllib.urlencode(post_form)
 
         response_gradelist = self.getresponse(url = self.url_Grade_Personal, headers=self.headers, encoded_data=encoded_postdata)
@@ -510,8 +510,12 @@ class LoginSystem:
         self.to_addr = to_addr
         self.sender_setted = True
 
-    def check_gradelist(self, sleep_second = 30):
+    def check_gradelist(self, sleep_second = 60):
+        """
 
+        :param sleep_second: 此处刷新间隔不宜过长，否则会报重定向错误
+        :return:
+        """
         while True:
             temp_dict = self.LoadGradelist(self.html_gradepage)
             # temp_dict['测试Python课程提醒'] = {'课程名称':'Python网络测试', '平时成绩':'636.69', '期末成绩':'766.84'}
@@ -587,7 +591,7 @@ def main():
 
     # test.EnterCoursePage()
     # test.evaluateClass()
-    # test.EnterGradePage()
+    # test.EnterGradePage(True)
 
 
 
@@ -595,86 +599,3 @@ if __name__ == '__main__':
 
     main()
 
-"""
-
-'所有评价已完成，现在可以提交！'
-
- '__VIEWSTATE': 'dDwyODE2NTM0OTg7Oz6XQwtkC4IPj2mY5bsI42qRkaJNzw==',
-
-
-POST /default2.aspx HTTP/1.1
-
-Host: 202.116.160.170
-
-User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0
-
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
-
-Accept-Language: zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3
-
-Accept-Encoding: gzip, deflate
-
-Referer: http://202.116.160.170/
-
-Cookie: ASP.NET_SessionId=dqovqqjxbxmi4umopz1bf2j2
-
-Connection: keep-alive
-
-Upgrade-Insecure-Requests: 1
-
-
-Content-Length	196
-Content-Type	application/x-www-form-urlencoded
-
-
-
-__EVENTTARGET
-__EVENTARGUMENT
-ddl_kcxz
-ddl_ywyl
-ddl_kcgs
-ddl_xqbs
-2
-ddl_sksj
-TextBox1
-(A
-Button2
-È·¶¨
-kcmcGrid:_ctl2:jcnr
-|||
-kcmcGrid:_ctl3:jcnr
-|||
-kcmcGrid:_ctl4:jcnr
-|||
-kcmcGrid:_ctl5:jcnr
-|||
-kcmcGrid:_ctl6:jcnr
-|||
-kcmcGrid:_ctl7:jcnr
-|||
-kcmcGrid:_ctl8:jcnr
-|||
-kcmcGrid:_ctl9:jcnr
-|||
-kcmcGrid:_ctl10:jcnr
-|||
-kcmcGrid:_ctl11:jcnr
-|||
-kcmcGrid:_ctl12:jcnr
-|||
-kcmcGrid:_ctl13:jcnr
-|||
-kcmcGrid:_ctl14:jcnr
-|||
-kcmcGrid:_ctl15:jcnr
-|||
-kcmcGrid:_ctl16:jcnr
-Ò©ÓÃÖ²ÎïÑ§|¿ÆÑ§³ö°æÉç|ÍõµÂÈº£¬Ì¸Ï×ºÍ|1
-dpkcmcGrid:txtChoosePage
-1
-dpkcmcGrid:txtPageSize
-15
-
-
-
- """
