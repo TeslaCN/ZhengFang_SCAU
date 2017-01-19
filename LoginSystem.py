@@ -8,6 +8,7 @@ import socket
 import cookielib
 import lxml.html
 import re
+import getpass
 from email.mime.text import MIMEText
 from email.header import Header
 from email.utils import parseaddr, formataddr
@@ -578,13 +579,13 @@ class LoginSystem:
 
 def main():
 
-    username = raw_input("Enter the user:\n")
-    passwd = raw_input("Enter the password:\n")
+    username = raw_input("Enter the user: ")
+    passwd = getpass.getpass("Enter the password: ")
 
     test = LoginSystem(username, password=passwd)
 
     from_addr = raw_input("Email: ")
-    email_password = raw_input("Password: ")
+    email_password = getpass.getpass("Password: ")
     to_addr = raw_input("To whom: ")
 
     test.set_sender(from_addr = from_addr, password=email_password, to_addr = to_addr)
